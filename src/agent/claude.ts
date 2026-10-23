@@ -56,6 +56,15 @@ export function mcpToolPrefix(serverName: string): string {
 }
 
 /** The MCP servers to hide, given what the session knows about and the bot's allow/deny lists. */
+/** Whether the bot's MCP allow/deny lists let it call this tool (non-MCP tools always pass). */
+export function mcpToolAllowed(toolName: string, mcp: BotConfig['agent']['mcp']): boolean {
+  if (!toolName.startsWith('mcp__')) return true;
+  const from = (server: string) => toolName.startsWith(`${mcpToolPrefix(server)}__`);
+  if (from('relay')) return true;
+  if (mcp.deny.some(from)) return false;
+  return mcp.allow ? mcp.allow.some(from) : true;
+}
+
 export function deniedServers(known: string[], mcp: BotConfig['agent']['mcp']): string[] {
   const deny = new Set(mcp.deny);
   if (mcp.allow) {
@@ -211,6 +220,28 @@ export class ClaudeSession implements AgentSession {
       systemPrompt: { type: 'preset', preset: 'claude_code', append: this.opts.systemAppend, snapshot: false },
       promptSuggestions: false,
       canUseTool: (name, input, o) => this.canUseTool(name, input, o),
+      // Hiding servers is best effort (claude.ai connectors can appear after the session starts); this hook
+      // refuses their tools whatever the permission rules or timing.
+      hooks: {
+        PreToolUse: [
+          {
+            hooks: [
+              async (input) => {
+                const name = 'tool_name' in input ? input.tool_name : '';
+                if (mcpToolAllowed(name, agent.mcp)) return {};
+                this.log.warn(`blocked ${name}: its MCP server is not allowed for this bot`);
+                return {
+                  hookSpecificOutput: {
+                    hookEventName: 'PreToolUse' as const,
+                    permissionDecision: 'deny' as const,
+                    permissionDecisionReason: 'That MCP server is not available to this bot.',
+                  },
+                };
+              },
+            ],
+          },
+        ],
+      },
       stderr: (data) => {
         this.stderrTail = (this.stderrTail + data).slice(-4000);
         this.log.debug('cli stderr:', data.trim());

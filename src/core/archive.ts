@@ -245,6 +245,10 @@ export class Archive {
       });
   }
 
+  deleteMessage(platform: string, messageId: string): void {
+    this.db.prepare('DELETE FROM messages WHERE platform = ? AND message_id = ?').run(platform, messageId);
+  }
+
   markDeleted(platform: string, messageId: string): void {
     this.db
       .prepare(`UPDATE messages SET meta = json_set(COALESCE(meta, '{}'), '$.deleted', 1) WHERE platform = ? AND message_id = ?`)

@@ -107,3 +107,15 @@ test('relative schedule times', async () => {
   assert.equal(resolveRelative('1 day', now), new Date(now + 86_400_000).toISOString());
   assert.equal(resolveRelative('0 18 * * 1-5', now), undefined);
 });
+
+test('MCP allowlist check used by the PreToolUse hook', async () => {
+  const { mcpToolAllowed } = await import('../src/agent/claude.js');
+  const mcp = { allow: ['jira-pm', 'claude.ai Google Drive'], deny: [] };
+  assert.equal(mcpToolAllowed('Bash', mcp), true);
+  assert.equal(mcpToolAllowed('mcp__relay__react', mcp), true);
+  assert.equal(mcpToolAllowed('mcp__jira-pm__getJiraIssue', mcp), true);
+  assert.equal(mcpToolAllowed('mcp__claude_ai_Google_Drive__search_files', mcp), true);
+  assert.equal(mcpToolAllowed('mcp__claude_ai_Gmail__send_message', mcp), false);
+  assert.equal(mcpToolAllowed('mcp__claude_ai_Gmail__send_message', { deny: [] }), true);
+  assert.equal(mcpToolAllowed('mcp__claude_ai_Gmail__send_message', { deny: ['claude.ai Gmail'] }), false);
+});

@@ -29,7 +29,7 @@ const cfg = BotConfig.parse({
   owners: ['u-henrique'],
   timezone: 'America/Sao_Paulo',
   platform: { type: 'discord', token: 'fake', channels: ['chan-1'] },
-  agent: { model: process.env.E2E_MODEL ?? 'haiku', effort: 'medium', warmStart: true, idleMinutes: 0 },
+  agent: { model: process.env.E2E_MODEL ?? 'haiku', effort: 'medium', warmStart: true, idleMinutes: 0, mcp: { allow: [] } },
   feedback: { liveAfterSeconds: 3, footer: 'always' },
 });
 const fake = new FakePlatform();

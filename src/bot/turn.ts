@@ -376,7 +376,8 @@ export class TurnView {
       text = `${truncate(answer, 3500)}\n\n-# The full answer is in the attached file.`;
     }
     const question = this.turn.choices?.question?.trim();
-    if (question && !text.toLowerCase().includes(question.toLowerCase())) text = `${text}\n\n**${question}**`.trim();
+    const asksAlready = /\?\s*$/.test(text.trim()) || text.toLowerCase().includes(question?.toLowerCase() ?? '\0');
+    if (question && !asksAlready) text = `${text}\n\n**${question}**`.trim();
     if (footer) text = `${text}\n${footer}`;
     const ping = o.durationMs >= this.o.cfg.feedback.pingAfterSeconds * 1000;
     const ids = await this.o.platform.send(this.turn.channelId, {

@@ -277,7 +277,9 @@ export class Bot implements BotRuntime {
           if (this.allowedChat(e.message.chat, e.message.author.id)) this.archiveMessage(e.message);
           return;
         case 'delete':
-          this.archive.markDeleted(this.platform.name, e.messageId);
+          // The bot's own deleted messages were transient (live progress); people's deletions stay as a mark.
+          if (this.archive.getMessage(this.platform.name, e.messageId)?.isSelf) this.archive.deleteMessage(this.platform.name, e.messageId);
+          else this.archive.markDeleted(this.platform.name, e.messageId);
           return;
         case 'reaction':
           return this.onReaction(e);
