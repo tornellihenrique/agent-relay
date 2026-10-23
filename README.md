@@ -124,11 +124,11 @@ A full `bot.json`. Only `id`, `name`, `context` and `platform` are required; eve
   "enabled": true,
   "context": "C:\\Users\\me\\Projects\\egg-smash-pm",   // the agent's working folder
   "timezone": "America/Sao_Paulo",
-  "owners": ["236653638095732746"],                     // change settings, approve tools, /new
+  "owners": ["111111111111111111"],                     // change settings, approve tools, /new
   "platform": {
     "type": "discord",
     "token": "env:EGG_SMASH_BOT_TOKEN",                 // or the token itself, or "file:path"
-    "channels": ["1491846697268023377"],                // channels, threads inside them, or categories
+    "channels": ["222222222222222222"],                // channels, threads inside them, or categories
     "users": [],                                        // allowed anywhere the bot is, DMs included
     "blockedUsers": [],
     "summonEmoji": "🤖",
@@ -163,7 +163,7 @@ A full `bot.json`. Only `id`, `name`, `context` and `platform` are required; eve
     "scope": "channel",                                 // or "bot": one session for every channel
     "trigger": "mentions",                              // mentions | all | off
     "recentMessages": 12,                               // unseen channel messages sent along with a trigger
-    "channelSettings": { "1491846697268023377": { "trigger": "mentions" } }
+    "channelSettings": { "222222222222222222": { "trigger": "mentions" } }
   },
   "feedback": {
     "liveAfterSeconds": 6,
@@ -176,7 +176,7 @@ A full `bot.json`. Only `id`, `name`, `context` and `platform` are required; eve
   "status": { "template": "{label} | {model} ({window}) | ctx {ctx}", "label": "PM" },
   "memory": { "notebook": "", "archive": "all" },
   "schedules": [
-    { "id": "daily", "when": "0 18 * * 1-5", "channel": "1491846697268023377", "prompt": "Check the sprint and remind people of stale tasks." }
+    { "id": "daily", "when": "0 18 * * 1-5", "channel": "222222222222222222", "prompt": "Check the sprint and remind people of stale tasks." }
   ]
 }
 ```
