@@ -14,6 +14,7 @@ export type TriggerMode = z.infer<typeof TriggerMode>;
 const ChannelSettings = z.object({
   trigger: TriggerMode.optional(),
   recentMessages: z.number().int().min(0).max(100).optional(),
+  recentMinutes: z.number().min(0).optional(),
 });
 
 const DiscordPlatform = z.object({
@@ -88,8 +89,10 @@ const Conversation = z.object({
   scope: z.enum(['channel', 'bot']).default('channel'),
   /** mentions = answer @mentions and replies to the bot; all = every message; off = commands only. */
   trigger: TriggerMode.default('mentions'),
-  /** Unseen channel messages included as context with each trigger. */
-  recentMessages: z.number().int().min(0).max(100).default(12),
+  /** Unseen channel messages sent along with a trigger: at most this many... */
+  recentMessages: z.number().int().min(0).max(100).default(8),
+  /** ...and none older than this many minutes (0 = no age limit). */
+  recentMinutes: z.number().min(0).default(60),
   channelSettings: z.record(z.string(), ChannelSettings).default({}),
 });
 

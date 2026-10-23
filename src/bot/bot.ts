@@ -369,11 +369,16 @@ export class Bot implements BotRuntime {
     };
   }
 
-  /** Messages before the trigger that the agent hasn't seen (with the bot asleep, the archive may lack them). */
+  /**
+   * Recent messages before the trigger that the agent hasn't seen: at most `recentMessages`, none older than
+   * `recentMinutes`. The agent can read further back itself (channel_messages, history_read).
+   */
   private async recentContext(m: ChatMessage, conv: Conversation, skipId?: string): Promise<ChatMessage[]> {
-    const n = this.cfg.conversation.channelSettings[m.chat.channelId]?.recentMessages ?? this.cfg.conversation.recentMessages;
+    const own = this.cfg.conversation.channelSettings[m.chat.channelId];
+    const n = own?.recentMessages ?? this.cfg.conversation.recentMessages;
+    const minutes = own?.recentMinutes ?? this.cfg.conversation.recentMinutes;
     if (!n || m.chat.isDM) return [];
-    const since = conv.st.lastSeenTs ?? 0;
+    const since = Math.max(conv.st.lastSeenTs ?? 0, minutes ? m.ts - minutes * 60_000 : 0);
     let msgs: ChatMessage[] = [];
     try {
       msgs = await this.platform.fetchHistory(m.chat.channelId, { before: m.id, limit: n });

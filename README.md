@@ -7,7 +7,7 @@ A fork of [op7418/Claude-to-IM-skill](https://github.com/op7418/Claude-to-IM-ski
 ## What a bot does
 
 - **Answers when it's addressed.** By default a bot answers @mentions and replies to its own messages. `/listen all` makes it read every message in a channel; DMs from allowed users always work. A thread started from one of the bot's messages becomes a conversation with it.
-- **Sees what you see.** A reply brings the replied-to message along (mention the bot while replying to *anyone's* message and that message comes too), and every trigger carries the channel messages the bot hasn't seen yet. Attachments are saved and images are shown to the agent.
+- **Sees what you see.** A reply brings the replied-to message along (mention the bot while replying to *anyone's* message and that message comes too), and every trigger carries the recent channel messages the bot hasn't seen yet (up to 8, from the last hour). Attachments are saved and images are shown to the agent.
 - **Shows its work.**
   - 👀 the moment a message reaches it (⏳ if it's queued behind another).
   - 🤔 while it thinks, then a tool emoji while it works (🔎 📖 ✏️ 💻 🌐 📋 🧩), ✍️ while it writes.
@@ -162,7 +162,8 @@ A full `bot.json`. Only `id`, `name`, `context` and `platform` are required; eve
   "conversation": {
     "scope": "channel",                                 // or "bot": one session for every channel
     "trigger": "mentions",                              // mentions | all | off
-    "recentMessages": 12,                               // unseen channel messages sent along with a trigger
+    "recentMessages": 8,                                // unseen channel messages sent along with a trigger…
+    "recentMinutes": 60,                                // …from the last hour only (0 = no limit)
     "channelSettings": { "222222222222222222": { "trigger": "mentions" } }
   },
   "feedback": {
