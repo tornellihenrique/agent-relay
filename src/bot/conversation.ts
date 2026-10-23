@@ -268,13 +268,31 @@ export class Conversation {
     while (session.busy) await sleep(400);
   }
 
-  private notebookText(): string {
-    const index = path.join(this.bot.paths.notebook, 'NOTEBOOK.md');
+  private notebookIndex(): string {
+    return path.join(this.bot.paths.notebook, 'NOTEBOOK.md');
+  }
+
+  private notebookMtime(): number {
+    try {
+      return fs.statSync(this.notebookIndex()).mtimeMs;
+    } catch {
+      return 0;
+    }
+  }
+
+  private notebookText(changed = false): string {
+    const index = this.notebookIndex();
     let content = '';
     try {
       content = fs.readFileSync(index, 'utf8');
     } catch { /* not written yet */ }
-    return notebookBlock(index, content);
+    this.bot.state.update(() => (this.st.notebookSeenAt = this.notebookMtime()));
+    return notebookBlock(index, content, changed ? 'your notes changed since you last read them (another channel or session may have updated them)' : undefined);
+  }
+
+  /** The notebook changed since this conversation last saw it (another channel wrote to it). */
+  private notebookChanged(): boolean {
+    return this.notebookMtime() > (this.st.notebookSeenAt ?? 0);
   }
 
   private sinkFor(view: TurnView | undefined): TurnSink {
@@ -318,8 +336,8 @@ export class Conversation {
     this.view = view;
     await view?.begin();
     let text = batch.map((b) => b.text).join('\n\n');
-    if (this.needsNotebook) {
-      text = `${this.notebookText()}\n\n${text}`;
+    if (this.needsNotebook || this.notebookChanged()) {
+      text = `${this.notebookText(!this.needsNotebook)}\n\n${text}`;
       this.needsNotebook = false;
     }
     const images = batch.flatMap((b) => b.images ?? []);
@@ -361,6 +379,8 @@ export class Conversation {
     this.bot.state.update(() => {
       this.st.lastActiveAt = Date.now();
       if (seenTs && seenTs > (this.st.lastSeenTs ?? 0)) this.st.lastSeenTs = seenTs;
+      // Whatever this turn wrote to the notebook, the agent already knows.
+      this.st.notebookSeenAt = this.notebookMtime();
       if (turn.channelId) this.st.channelId = turn.channelId;
     });
     this.bot.archive.saveTurn({
@@ -445,6 +465,13 @@ export class Conversation {
   async setEffort(effort: Effort | undefined): Promise<void> {
     this.bot.state.update(() => (this.st.effort = effort));
     await this.session?.setEffort(effort);
+  }
+
+  /** Drops this channel's own model or effort and follows the bot's default again. */
+  async useBotDefault(what: 'model' | 'effort'): Promise<void> {
+    this.bot.state.update(() => delete this.st[what]);
+    if (what === 'model') await this.session?.setModel(this.bot.cfg.agent.model);
+    else await this.session?.setEffort(this.bot.cfg.agent.effort);
   }
 
   private async quietTurn(text: string): Promise<TurnOutcome> {

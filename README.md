@@ -7,14 +7,14 @@ A fork of [op7418/Claude-to-IM-skill](https://github.com/op7418/Claude-to-IM-ski
 ## What a bot does
 
 - **Answers when it's addressed.** By default a bot answers @mentions and replies to its own messages. `/listen all` makes it read every message in a channel; DMs from allowed users always work. A thread started from one of the bot's messages becomes a conversation with it.
-- **Sees what you see.** A reply brings the replied-to message along (mention the bot while replying to *anyone's* message and that message comes too), and every trigger carries the recent channel messages the bot hasn't seen yet (up to 8, from the last hour). Attachments are saved and images are shown to the agent.
+- **Sees what you see.** A reply brings the replied-to message along, files included (mention the bot while replying to *anyone's* message and that message comes too), and every trigger carries the recent channel messages the bot hasn't seen yet (up to 8, from the last hour). Attachments are saved and images are shown to the agent.
 - **Shows its work.**
   - 👀 the moment a message reaches it (⏳ if it's queued behind another).
   - 🤔 while it thinks, then a tool emoji while it works (🔎 📖 ✏️ 💻 🌐 📋 🧩), ✍️ while it writes.
   - On longer turns, a live message with its reasoning and tool calls, plus a ⏹️ Stop button.
   - That message is deleted when the answer is posted, and ✅ marks the trigger as done (⚠️ error, ⏹️ stopped).
 - **Takes reactions as answers.** 👍 on its proposal means go ahead, 👎 means no, ❓ explain, 🔁 redo. 🛑 on a message it's working on stops it. 🤖 on *any* message pulls the bot in to look at it.
-- **Asks with buttons.** It can attach quick-reply buttons to an answer (`offer_choices`), ask a blocking question with buttons mid-task (Claude Code's `AskUserQuestion`), and ask the owners to approve a tool it isn't allowed to use on its own.
+- **Asks with buttons.** It can attach quick-reply buttons to an answer, each explained in a line (`offer_choices`), ask a blocking question with buttons mid-task (Claude Code's `AskUserQuestion`), and ask the owners to approve a tool it isn't allowed to use on its own.
 - **Says what it's running on.** The bot's Discord status reads `PM | Opus 5.5 (1M) | ctx 23%`: model, context window, context used. Green means ready, red working, yellow asleep. `/status` has the details.
 - **Remembers.** Every message in its channels goes into a searchable archive. The bot keeps its own notebook. Before a compaction or a reset it saves notes first. Compacting is safe at any time.
 - **Works on a schedule.** It can set reminders and recurring tasks for itself ("every weekday at 18h, check the sprint").
@@ -65,7 +65,7 @@ The supervisor runs each bot in its own process and restarts it if it crashes. E
 | Command | |
 |---|---|
 | `/status` | Model, effort, context use, session, plan usage, listening mode |
-| `/model [name]` · `/effort [level]` | Show or change them for this channel (owners) |
+| `/model [name] [only_here]` · `/effort [level] [only_here]` | Show or change them for every channel (saved in `bot.json`), or with `only_here` for this channel only (owners) |
 | `/compact [focus]` | Save notes, then compact the conversation |
 | `/new` | Save notes and start a fresh session (owners) |
 | `/stop` | Interrupt the current turn |

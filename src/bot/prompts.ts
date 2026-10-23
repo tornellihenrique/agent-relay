@@ -4,6 +4,7 @@ import { deferred } from '../core/async.js';
 import type { Logger } from '../core/log.js';
 import { oneLine, truncate } from '../core/text.js';
 import type { ButtonSpec, Interaction, Platform, SelectSpec } from '../platform/types.js';
+import { serverLabel } from './tool-labels.js';
 
 /**
  * Blocking prompts the agent raises mid-turn: tool permission requests (owners answer) and
@@ -37,7 +38,23 @@ type Pending = PendingPermission | PendingQuestion;
 
 const LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 
+/** "Google Drive · search files" plus the few arguments that say what it will touch. */
+function describeMcp(req: PermissionRequest): string | undefined {
+  const m = req.toolName.match(/^mcp__(.+?)__(.+)$/);
+  if (!m) return undefined;
+  const args = Object.entries(req.input)
+    .filter(([, v]) => v !== undefined && v !== null && v !== '' && typeof v !== 'boolean')
+    .slice(0, 3)
+    .map(([k, v]) => {
+      const text = typeof v === 'string' ? v : JSON.stringify(v);
+      return `${k.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase()}: \`${truncate(text, 80).replace(/`/g, "'")}\``;
+    });
+  return `**${serverLabel(m[1])}** · ${m[2].replace(/_/g, ' ')}${args.length ? `\n> ${args.join(' · ')}` : ''}`;
+}
+
 function describeTool(req: PermissionRequest): string {
+  const mcp = describeMcp(req);
+  if (mcp) return mcp;
   if (req.title) return req.title;
   const input = req.input;
   const detail =

@@ -4,7 +4,7 @@ import type { AgentImage, SessionInfo } from '../agent/types.js';
 import { modelLabel, windowLabel } from '../agent/models.js';
 import { Archive, type ArchiveRow, type ScheduleRow } from '../core/archive.js';
 import { throttle } from '../core/async.js';
-import type { BotConfig, TriggerMode } from '../core/config.js';
+import { patchBotConfig, type BotConfig, type TriggerMode } from '../core/config.js';
 import { logger, type Logger } from '../core/log.js';
 import { botPaths, ensureDir, writeJsonAtomic, type BotPaths } from '../core/paths.js';
 import { StateStore } from '../core/state.js';
@@ -256,6 +256,25 @@ export class Bot implements BotRuntime {
     return [...this.conversations.values()];
   }
 
+  /**
+   * Changes the bot's default model or effort (saved in bot.json) and makes every channel follow it,
+   * dropping the per-channel values set before.
+   */
+  async setBotDefault(what: 'model' | 'effort', value: string | undefined): Promise<void> {
+    patchBotConfig(this.cfg.id, (raw) => {
+      raw.agent ??= {};
+      if (value) raw.agent[what] = value;
+      else delete raw.agent[what];
+    });
+    if (what === 'model') this.cfg.agent.model = value;
+    else this.cfg.agent.effort = value as BotConfig['agent']['effort'];
+    this.state.update((s) => {
+      for (const c of Object.values(s.conversations)) delete c[what];
+    });
+    for (const c of this.conversations.values()) await c.useBotDefault(what);
+    this.statusChanged();
+  }
+
   triggerMode(chat: ChatRef): TriggerMode {
     const s = this.state.state.triggers;
     const cs = this.cfg.conversation.channelSettings;
@@ -357,8 +376,11 @@ export class Bot implements BotRuntime {
       }
     }
     const recent = await this.recentContext(m, conv, replyTo?.id);
-    const { files, images } = await this.saveAttachments(m);
-    const text = [channelContext(m.chat.name, recent, ctx), messageEnvelope(m, ctx, { replyTo, files })].filter(Boolean).join('\n\n');
+    const images: AgentImage[] = [];
+    const files = await this.saveAttachments(m, images);
+    // The replied-to message's files come along too ("@bot look at these").
+    const replyFiles = replyTo?.attachments.length ? await this.saveAttachments(replyTo, images) : undefined;
+    const text = [channelContext(m.chat.name, recent, ctx), messageEnvelope(m, ctx, { replyTo, files, replyFiles })].filter(Boolean).join('\n\n');
     return {
       kind: 'message',
       text,
@@ -390,9 +412,9 @@ export class Bot implements BotRuntime {
     return msgs.filter((x) => x.ts > since && !x.fromSelf && x.id !== skipId && x.id !== m.id && !this.recentTriggers.has(x.id));
   }
 
-  private async saveAttachments(m: ChatMessage): Promise<{ files: SavedFile[]; images: AgentImage[] }> {
+  /** Downloads a message's attachments to the inbox; up to 4 images per turn (in `images`) are shown to the agent. */
+  private async saveAttachments(m: ChatMessage, images: AgentImage[]): Promise<SavedFile[]> {
     const files: SavedFile[] = [];
-    const images: AgentImage[] = [];
     for (const a of m.attachments) {
       const isImage = Boolean(a.contentType && IMAGE_TYPES.has(a.contentType.split(';')[0]));
       if (a.size > MAX_FILE) {
@@ -413,7 +435,7 @@ export class Bot implements BotRuntime {
         files.push({ name: a.name, kind: isImage ? 'image' : 'file', included: false, note: `download failed: ${(err as Error).message}` });
       }
     }
-    return { files, images };
+    return files;
   }
 
   private async onReaction(e: Extract<PlatformEvent, { type: 'reaction' }>): Promise<void> {
@@ -445,9 +467,12 @@ export class Bot implements BotRuntime {
       const target = await this.platform.fetchMessage(e.chat.channelId, e.messageId);
       if (!target) return;
       if (!conv.busy) void this.marks.add(e.chat.channelId, e.messageId, this.cfg.feedback.reactions.received);
+      const images: AgentImage[] = [];
+      const files = target.attachments.length ? await this.saveAttachments(target, images) : undefined;
       conv.enqueue({
         kind: 'summon',
-        text: summonEnvelope(e.user, e.emoji.value, target, this.envelope(), Date.now()),
+        text: summonEnvelope(e.user, e.emoji.value, target, this.envelope(), Date.now(), files),
+        images,
         trigger: { channelId: e.chat.channelId, messageId: e.messageId, userId: e.user.id, userName: e.user.name, kind: 'summon' },
         ts: Date.now(),
         seenTs: target.ts,

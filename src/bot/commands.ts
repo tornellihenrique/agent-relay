@@ -10,13 +10,19 @@ export const COMMANDS: CommandSpec[] = [
   { name: 'status', description: 'Model, effort, context use, session and memory of this channel' },
   {
     name: 'model',
-    description: 'Show or change the model for this channel (owners)',
-    options: [{ name: 'name', description: 'Model or alias (opus, sonnet, haiku, fable…); "default" resets', type: 'string', autocomplete: true }],
+    description: 'Show or change the model, for every channel or only this one (owners)',
+    options: [
+      { name: 'name', description: 'Model or alias (opus, sonnet, haiku, fable…); "default" = the CLI default', type: 'string', autocomplete: true },
+      { name: 'only_here', description: 'Change only this channel (default: every channel)', type: 'boolean' },
+    ],
   },
   {
     name: 'effort',
-    description: 'Show or change the reasoning effort for this channel (owners)',
-    options: [{ name: 'level', description: 'Effort level', type: 'string', choices: [...EFFORT_LEVELS, 'default'].map((v) => ({ name: v, value: v })) }],
+    description: 'Show or change the reasoning effort, for every channel or only this one (owners)',
+    options: [
+      { name: 'level', description: 'Effort level', type: 'string', choices: [...EFFORT_LEVELS, 'default'].map((v) => ({ name: v, value: v })) },
+      { name: 'only_here', description: 'Change only this channel (default: every channel)', type: 'boolean' },
+    ],
   },
   {
     name: 'compact',
@@ -113,25 +119,28 @@ export async function handleCommand(bot: Bot, i: Interaction): Promise<void> {
       return say(lines.filter(Boolean).join('\n'));
     }
 
-    case 'model': {
-      const name = i.options?.name as string | undefined;
-      if (!name) {
-        const info = bot.infoOf(conv);
-        return say(`Model: **${info.modelLabel ?? 'default'}** (${info.model ?? 'CLI default'}). Owners can change it with \`/model name:\`.`);
-      }
-      if (!owner) return say('Only the bot owners can change the model.');
-      await i.ack();
-      await conv.setModel(name === 'default' ? undefined : name);
-      return i.reply({ text: `Model for this channel: **${name}**. It applies from the next message.`, private: true });
-    }
-
+    case 'model':
     case 'effort': {
-      const level = i.options?.level as string | undefined;
-      if (!level) return say(`Effort: **${bot.infoOf(conv).effort ?? 'default'}**.`);
-      if (!owner) return say('Only the bot owners can change the effort.');
+      const what = i.key as 'model' | 'effort';
+      const value = (what === 'model' ? i.options?.name : i.options?.level) as string | undefined;
+      const here = conv.st[what];
+      const botDefault = bot.cfg.agent[what];
+      if (!value) {
+        const info = bot.infoOf(conv);
+        const current = what === 'model' ? `**${info.modelLabel ?? 'default'}** (${info.model ?? 'CLI default'})` : `**${info.effort ?? 'default'}**`;
+        const source = here ? `set for this channel only; the bot default is ${botDefault ?? 'the CLI default'}` : 'the bot default for every channel';
+        return say(`${what === 'model' ? 'Model' : 'Effort'}: ${current}, ${source}.`);
+      }
+      if (!owner) return say(`Only the bot owners can change the ${what}.`);
       await i.ack();
-      await conv.setEffort(level === 'default' ? undefined : (level as Effort));
-      return i.reply({ text: `Effort for this channel: **${level}**.`, private: true });
+      const v = value === 'default' ? undefined : value;
+      if (i.options?.only_here) {
+        if (what === 'model') await conv.setModel(v);
+        else await conv.setEffort(v as Effort | undefined);
+        return i.reply({ text: `${what === 'model' ? 'Model' : 'Effort'} for this channel only: **${value}**. It applies from the next message.`, private: true });
+      }
+      await bot.setBotDefault(what, v);
+      return i.reply({ text: `${what === 'model' ? 'Model' : 'Effort'} for every channel: **${value}** (saved in the bot config). It applies from the next message.`, private: true });
     }
 
     case 'compact': {

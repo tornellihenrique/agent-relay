@@ -60,7 +60,7 @@ export function channelContext(channelName: string | undefined, messages: ChatMe
 export function messageEnvelope(
   m: ChatMessage,
   ctx: EnvelopeContext,
-  opts: { replyTo?: ChatMessage | null; files?: SavedFile[]; edited?: boolean } = {},
+  opts: { replyTo?: ChatMessage | null; files?: SavedFile[]; replyFiles?: SavedFile[]; edited?: boolean } = {},
 ): string {
   const head = `<message id="${m.id}" channel="${attr(m.chat.name ?? (m.chat.isDM ? 'DM' : m.chat.channelId))}" ${who(m.author, ctx)} time="${formatTime(m.ts, ctx.timezone)}"${opts.edited ? ' edited="true"' : ''}>`;
   const parts = [head];
@@ -68,22 +68,31 @@ export function messageEnvelope(
     const r = opts.replyTo;
     const from = r.fromSelf ? 'you' : attr(r.author.name);
     parts.push(
-      `<reply_to id="${r.id}" from="${from}" user_id="${r.author.id}" time="${formatTime(r.ts, ctx.timezone)}">\n${body(r, 3000)}\n</reply_to>`,
+      `<reply_to id="${r.id}" from="${from}" user_id="${r.author.id}" time="${formatTime(r.ts, ctx.timezone)}">\n${[
+        body(opts.replyFiles?.length ? { ...r, attachments: [] } : r, 3000),
+        attachmentList(opts.replyFiles),
+      ]
+        .filter(Boolean)
+        .join('\n')}\n</reply_to>`,
     );
   } else if (m.replyToId) {
     parts.push(`<reply_to id="${m.replyToId}" note="original message not available"/>`);
   }
   parts.push(body({ ...m, attachments: [] }, 12000) || '(no text)');
-  if (opts.files?.length) {
-    const lines = opts.files.map((f) => {
-      if (f.kind === 'image' && f.included) return `- ${f.name} (image, shown to you)`;
-      if (f.path) return `- ${f.name} → saved at ${f.path}`;
-      return `- ${f.name} (${f.note ?? 'not downloaded'})`;
-    });
-    parts.push(`<attachments>\n${lines.join('\n')}\n</attachments>`);
-  }
+  const files = attachmentList(opts.files);
+  if (files) parts.push(files);
   parts.push('</message>');
   return parts.join('\n');
+}
+
+function attachmentList(files: SavedFile[] | undefined): string {
+  if (!files?.length) return '';
+  const lines = files.map((f) => {
+    if (f.kind === 'image' && f.included) return `- ${f.name} (image, shown to you; saved at ${f.path})`;
+    if (f.path) return `- ${f.name} → saved at ${f.path}`;
+    return `- ${f.name} (${f.note ?? 'not downloaded'})`;
+  });
+  return `<attachments>\n${lines.join('\n')}\n</attachments>`;
 }
 
 export function reactionEnvelope(
@@ -98,13 +107,16 @@ export function reactionEnvelope(
   return `${head}\n${text}\n</reaction>`;
 }
 
-export function summonEnvelope(user: UserRef, emoji: string, target: ChatMessage, ctx: EnvelopeContext, ts: number): string {
+export function summonEnvelope(user: UserRef, emoji: string, target: ChatMessage, ctx: EnvelopeContext, ts: number, files?: SavedFile[]): string {
   return [
     `<summon ${who(user, ctx)} emoji="${attr(emoji)}" time="${formatTime(ts, ctx.timezone)}" message_id="${target.id}">`,
     `${user.name} reacted ${emoji} to this message from ${target.fromSelf ? 'you' : target.author.name} (${formatTime(target.ts, ctx.timezone)}) to bring you in:`,
-    body(target, 6000),
+    body(files?.length ? { ...target, attachments: [] } : target, 6000),
+    attachmentList(files),
     '</summon>',
-  ].join('\n');
+  ]
+    .filter(Boolean)
+    .join('\n');
 }
 
 export function choiceEnvelope(
@@ -129,9 +141,9 @@ export function scheduleEnvelope(
   return `<scheduled_task id="${attr(s.id)}" name="${attr(s.name)}" schedule="${attr(s.when)}" channel="${attr(s.channelName ?? '')}" time="${formatTime(ts, ctx.timezone)}">\n${prompt}\n</scheduled_task>`;
 }
 
-export function notebookBlock(file: string, content: string): string {
+export function notebookBlock(file: string, content: string, note = 'your own notes, loaded at the start of this session'): string {
   const trimmed = content.trim();
-  return `<notebook path="${attr(file)}" note="your own notes, loaded at the start of this session">\n${trimmed ? truncate(trimmed, 20000) : '(empty; nothing saved yet)'}\n</notebook>`;
+  return `<notebook path="${attr(file)}" note="${attr(note)}">\n${trimmed ? truncate(trimmed, 20000) : '(empty; nothing saved yet)'}\n</notebook>`;
 }
 
 export function relayNote(text: string): string {

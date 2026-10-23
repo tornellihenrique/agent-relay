@@ -9,6 +9,8 @@ export interface ConversationState {
   effort?: Effort;
   /** Time of the newest channel message the agent has seen (older ones aren't repeated as context). */
   lastSeenTs?: number;
+  /** Modification time of NOTEBOOK.md when this conversation last saw it. */
+  notebookSeenAt?: number;
   lastActiveAt?: number;
   /** Last known session numbers, shown while the agent process is asleep. */
   last?: { model?: string; modelLabel?: string; contextWindow?: number; ctxPercent?: number; ctxTokens?: number };

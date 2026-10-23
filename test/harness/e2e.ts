@@ -80,6 +80,14 @@ if (run('reaction')) {
   await sleep(3000);
   await idle('reaction');
 }
+if (run('files')) {
+  // A 16x16 solid blue PNG and a small text file, posted by someone else; the trigger only replies to it.
+  const png = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAIAAACQkWg2AAAAF0lEQVR42mNkYPjPQApgHFUwqmBUAQkAAKbQAhGo6MK3AAAAAElFTkSuQmCC';
+  const txt = Buffer.from('Reunião de playtest: sexta às 19h. Trazer o build 0.3.\n').toString('base64');
+  const post = fake.say(caua, '', { files: [{ name: 'cor.png', type: 'image/png', base64: png }, { name: 'aviso.txt', type: 'text/plain', base64: txt }] });
+  fake.say(henrique, 'que cor é a imagem e o que diz o txt dessa mensagem? uma linha', { replyTo: post.id, mention: true });
+  await idle('files');
+}
 if (run('choices')) {
   fake.say(henrique, 'quero criar um arquivo novo aqui. me deixa escolher o nome entre a.txt e b.txt com botões, sem criar ainda', { mention: true });
   await idle('choices (offer)');

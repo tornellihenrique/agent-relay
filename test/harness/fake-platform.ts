@@ -122,7 +122,7 @@ export class FakePlatform implements Platform {
 
   // ── test drivers ──────────────────────────────────────────
 
-  say(user: UserRef, text: string, opts: { replyTo?: string; mention?: boolean } = {}): ChatMessage {
+  say(user: UserRef, text: string, opts: { replyTo?: string; mention?: boolean; files?: { name: string; type: string; base64: string }[] } = {}): ChatMessage {
     const id = String(this.seq++);
     const m: ChatMessage = {
       id,
@@ -131,7 +131,14 @@ export class FakePlatform implements Platform {
       text: opts.mention ? `@${this.selfName} ${text}` : text,
       ts: Date.now(),
       replyToId: opts.replyTo,
-      attachments: [],
+      // data: URLs stand in for Discord's CDN; fetch() reads them like any URL.
+      attachments: (opts.files ?? []).map((f, i) => ({
+        id: `${id}-${i}`,
+        name: f.name,
+        url: `data:${f.type};base64,${f.base64}`,
+        contentType: f.type,
+        size: Buffer.from(f.base64, 'base64').length,
+      })),
       mentionsSelf: Boolean(opts.mention),
       fromSelf: false,
     };

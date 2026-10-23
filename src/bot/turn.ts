@@ -23,7 +23,7 @@ export interface TriggerRef {
 
 export interface ChoiceOffer {
   question?: string;
-  options: { label: string; emoji?: string; style?: 'primary' | 'secondary' | 'success' | 'danger' }[];
+  options: { label: string; description?: string; emoji?: string; style?: 'primary' | 'secondary' | 'success' | 'danger' }[];
   allowOther: boolean;
 }
 
@@ -375,9 +375,17 @@ export class TurnView {
       files.push({ path: file, name: 'answer.md' });
       text = `${truncate(answer, 3500)}\n\n-# The full answer is in the attached file.`;
     }
-    const question = this.turn.choices?.question?.trim();
+    const choices = this.turn.choices;
+    const question = choices?.question?.trim();
     const asksAlready = /\?\s*$/.test(text.trim()) || text.toLowerCase().includes(question?.toLowerCase() ?? '\0');
     if (question && !asksAlready) text = `${text}\n\n**${question}**`.trim();
+    // The buttons only carry short labels: list what each one does.
+    if (choices?.options.some((opt) => opt.description)) {
+      const list = choices.options
+        .map((opt) => `- ${opt.emoji ? `${opt.emoji} ` : ''}**${opt.label}**${opt.description ? ` — ${opt.description}` : ''}`)
+        .join('\n');
+      text = `${text}\n${list}`.trim();
+    }
     if (footer) text = `${text}\n${footer}`;
     const ping = o.durationMs >= this.o.cfg.feedback.pingAfterSeconds * 1000;
     const ids = await this.o.platform.send(this.turn.channelId, {

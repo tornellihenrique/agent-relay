@@ -82,11 +82,11 @@ export function relayTools(d: ToolDeps) {
           } catch (err) {
             return fail(`Could not react: ${(err as Error).message}`);
           }
-        },
+        },
       ),
       loaded(
         'offer_choices',
-        'Attach buttons to your answer so people can reply with one click. Their pick comes back later as a <choice> event. Use 2-8 short options; allow_other adds a button that opens a text box.',
+        'Attach buttons to your answer so people can reply with one click. Call it before you write your final answer. Their pick comes back later as a <choice> event. Use 2-8 short options and give each a description of what happens if it is picked: the descriptions are listed with the buttons, so nobody has to guess. allow_other adds a button that opens a text box.',
         {
           question: z.string().optional().describe('Short question shown above the buttons, if your answer does not already end with it.'),
           options: z
@@ -96,6 +96,7 @@ export function relayTools(d: ToolDeps) {
                   z.string(),
                   z.object({
                     label: z.string().describe('1-5 words'),
+                    description: z.string().optional().describe('What you will do if this is picked, in one short line'),
                     emoji: z.string().optional(),
                     style: z.enum(['primary', 'secondary', 'success', 'danger']).optional(),
                   }),
@@ -115,7 +116,7 @@ export function relayTools(d: ToolDeps) {
           if (options.length === 0) return fail('Give at least one option in "options".');
           turn.choices = { question: a.question, options: options.slice(0, 12), allowOther: Boolean(a.allow_other) };
           return ok('The buttons will appear under your answer. Finish your answer normally.');
-        },
+        },
       ),
       loaded(
         'send_message',
@@ -334,7 +335,7 @@ export function relayTools(d: ToolDeps) {
   });
 }
 
-type Option = { label: string; emoji?: string; style?: 'primary' | 'secondary' | 'success' | 'danger' };
+type Option = { label: string; description?: string; emoji?: string; style?: 'primary' | 'secondary' | 'success' | 'danger' };
 
 /** Models sometimes send the options as a JSON string or as plain labels; accept all of them. */
 function normalizeOptions(raw: unknown): Option[] {
@@ -351,8 +352,13 @@ function normalizeOptions(raw: unknown): Option[] {
     .map((o): Option | undefined => {
       if (typeof o === 'string') return { label: o };
       if (o && typeof o === 'object' && typeof (o as Option).label === 'string') {
-        const { label, emoji, style } = o as Option;
-        return { label, emoji, style: ['primary', 'secondary', 'success', 'danger'].includes(style ?? '') ? style : undefined };
+        const { label, description, emoji, style } = o as Option;
+        return {
+          label,
+          description: typeof description === 'string' && description.trim() ? description.trim() : undefined,
+          emoji,
+          style: ['primary', 'secondary', 'success', 'danger'].includes(style ?? '') ? style : undefined,
+        };
       }
       return undefined;
     })
