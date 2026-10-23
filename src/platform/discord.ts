@@ -3,6 +3,7 @@ import {
   ActionRowBuilder,
   ActivityType,
   ApplicationCommandOptionType,
+  ApplicationIntegrationType,
   AttachmentBuilder,
   ButtonBuilder,
   ButtonStyle,
@@ -10,6 +11,7 @@ import {
   Client,
   Events,
   GatewayIntentBits,
+  InteractionContextType,
   MessageFlags,
   ModalBuilder,
   Partials,
@@ -573,24 +575,46 @@ export class DiscordPlatform implements Platform {
     });
   }
 
+  /**
+   * Registers the commands in every server that holds one of the bot's channels (server commands show up
+   * at once; global ones can take a while to reach clients) and globally for DMs only, so servers don't
+   * list them twice.
+   */
   async registerCommands(cmds: CommandSpec[]): Promise<void> {
-    if (!this.client.application) return;
+    const app = this.client.application;
+    if (!app) return;
     const typeOf = { string: ApplicationCommandOptionType.String, integer: ApplicationCommandOptionType.Integer, boolean: ApplicationCommandOptionType.Boolean };
-    await this.client.application.commands.set(
-      cmds.map((c) => ({
-        name: c.name,
-        description: truncate(c.description, 100),
-        options: (c.options ?? []).map((o) => ({
-          name: o.name,
-          description: truncate(o.description, 100),
-          type: typeOf[o.type],
-          required: o.required ?? false,
-          ...(o.choices ? { choices: o.choices } : {}),
-          ...(o.autocomplete ? { autocomplete: true } : {}),
-        })) as never,
-      })),
+    const data = cmds.map((c) => ({
+      name: c.name,
+      description: truncate(c.description, 100),
+      options: (c.options ?? []).map((o) => ({
+        name: o.name,
+        description: truncate(o.description, 100),
+        type: typeOf[o.type],
+        required: o.required ?? false,
+        ...(o.choices ? { choices: o.choices } : {}),
+        ...(o.autocomplete ? { autocomplete: true } : {}),
+      })) as never,
+    }));
+    const guilds = new Set<string>();
+    for (const id of this.cfg.channels) {
+      const ch = await this.client.channels.fetch(id).catch(() => null);
+      if (ch && 'guildId' in ch && ch.guildId) guilds.add(ch.guildId);
+      // A configured category or server id rather than a channel.
+      else if (this.client.guilds.cache.has(id)) guilds.add(id);
+    }
+    for (const guildId of guilds) {
+      try {
+        await app.commands.set(data, guildId);
+        this.log.info(`registered ${data.length} slash commands in server ${this.client.guilds.cache.get(guildId)?.name ?? guildId}`);
+      } catch (err) {
+        this.log.warn(`could not register commands in server ${guildId} (invite the bot with the applications.commands scope):`, err);
+      }
+    }
+    await app.commands.set(
+      data.map((d) => ({ ...d, contexts: [InteractionContextType.BotDM], integrationTypes: [ApplicationIntegrationType.GuildInstall] })),
     );
-    this.log.info(`registered ${cmds.length} slash commands`);
+    this.log.info(`registered ${data.length} slash commands for DMs`);
   }
 
   async userName(userId: string, guildId?: string): Promise<string | undefined> {
