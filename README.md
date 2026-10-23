@@ -1,376 +1,220 @@
-# Claude-to-IM Skill
+# agent-relay
 
-Bridge Claude Code / Codex to IM platforms — chat with AI coding agents from Telegram, Discord, Feishu/Lark, QQ, or WeChat.
+Run AI agents as chat bots. Each bot is an agent (Claude Code, through the Agent SDK) working in a folder of your choice, reachable from Discord, with live feedback while it works, a memory that survives compaction, and a supervisor that starts with your machine.
 
-[中文文档](README_CN.md)
+A fork of [op7418/Claude-to-IM-skill](https://github.com/op7418/Claude-to-IM-skill), rewritten: it is no longer a Claude Code skill but a standalone runtime for any number of bots.
 
-> **Want a desktop GUI instead?** Check out [CodePilot](https://github.com/op7418/CodePilot) — a full-featured desktop app with visual chat interface, session management, file tree preview, permission controls, and more. This skill was extracted from CodePilot's IM bridge module for users who prefer a lightweight, CLI-only setup.
+## What a bot does
 
----
+- **Answers when it's addressed.** By default a bot answers @mentions and replies to its own messages. `/listen all` makes it read every message in a channel; DMs from allowed users always work. A thread started from one of the bot's messages becomes a conversation with it.
+- **Sees what you see.** A reply brings the replied-to message along (mention the bot while replying to *anyone's* message and that message comes too), and every trigger carries the channel messages the bot hasn't seen yet. Attachments are saved and images are shown to the agent.
+- **Shows its work.**
+  - 👀 the moment a message reaches it (⏳ if it's queued behind another).
+  - 🤔 while it thinks, then a tool emoji while it works (🔎 📖 ✏️ 💻 🌐 📋 🧩), ✍️ while it writes.
+  - On longer turns, a live message with its reasoning and tool calls, plus a ⏹️ Stop button.
+  - That message is deleted when the answer is posted, and ✅ marks the trigger as done (⚠️ error, ⏹️ stopped).
+- **Takes reactions as answers.** 👍 on its proposal means go ahead, 👎 means no, ❓ explain, 🔁 redo. 🛑 on a message it's working on stops it. 🤖 on *any* message pulls the bot in to look at it.
+- **Asks with buttons.** It can attach quick-reply buttons to an answer (`offer_choices`), ask a blocking question with buttons mid-task (Claude Code's `AskUserQuestion`), and ask the owners to approve a tool it isn't allowed to use on its own.
+- **Says what it's running on.** The bot's Discord status reads `PM | Opus 5.5 (1M) | ctx 23%`: model, context window, context used. Green means ready, red working, yellow asleep. `/status` has the details.
+- **Remembers.** Every message in its channels goes into a searchable archive. The bot keeps its own notebook. Before a compaction or a reset it saves notes first. Compacting is safe at any time.
+- **Works on a schedule.** It can set reminders and recurring tasks for itself ("every weekday at 18h, check the sprint").
 
-## How It Works
+## Install
 
-This skill runs a background daemon that connects your IM bots to Claude Code or Codex sessions. Messages from IM are forwarded to the AI coding agent, and responses (including tool use, permission requests, streaming previews) are sent back to your chat.
-
-```
-You (Telegram/Discord/Feishu/QQ/WeChat)
-  ↕ Bot API
-Background Daemon (Node.js)
-  ↕ Claude Agent SDK or Codex SDK (configurable via CTI_RUNTIME)
-Claude Code / Codex → reads/writes your codebase
-```
-
-## Features
-
-- **Five IM platforms** — Telegram, Discord, Feishu/Lark, QQ, WeChat — enable any combination
-- **Interactive setup** — guided wizard collects tokens with step-by-step instructions
-- **Permission control** — tool calls require explicit approval via inline buttons (Telegram/Discord) or text `/perm` commands / quick `1/2/3` replies (Feishu/QQ/WeChat)
-- **Streaming preview** — see Claude's response as it types (Telegram & Discord)
-- **Session persistence** — conversations survive daemon restarts
-- **Secret protection** — tokens stored with `chmod 600`, auto-redacted in all logs
-- **Zero code required** — install the skill and run `/claude-to-im setup`, or tell Codex `claude-to-im setup`
-
-## Prerequisites
-
-- **Node.js >= 20**
-- **Claude Code CLI** (for `CTI_RUNTIME=claude` or `auto`) — installed and authenticated (`claude` command available)
-- **Codex CLI** (for `CTI_RUNTIME=codex` or `auto`) — `npm install -g @openai/codex`. Auth: run `codex auth login`, or set `OPENAI_API_KEY` (optional, for API mode)
-
-## Installation
-
-Choose the section that matches the AI agent product you actually use.
-
-### Claude Code
-
-#### Recommended: `npx skills`
+Node 22.13 or newer, and Claude Code logged in on the machine (`claude`, then `/login`) or an API key.
 
 ```bash
-npx skills add op7418/Claude-to-IM-skill
-```
-
-After installation, tell Claude Code:
-
-```text
-/claude-to-im setup
-```
-
-If you want WeChat specifically, you can also say:
-
-```text
-帮我接微信
-```
-
-#### Alternative: clone directly into Claude Code skills
-
-```bash
-git clone https://github.com/op7418/Claude-to-IM-skill.git ~/.claude/skills/claude-to-im
-```
-
-Claude Code discovers it automatically.
-
-#### Alternative: symlink for development
-
-```bash
-git clone https://github.com/op7418/Claude-to-IM-skill.git ~/code/Claude-to-IM-skill
-mkdir -p ~/.claude/skills
-ln -s ~/code/Claude-to-IM-skill ~/.claude/skills/claude-to-im
-```
-
-### Codex
-
-#### Recommended: use the Codex install script
-
-```bash
-git clone https://github.com/op7418/Claude-to-IM-skill.git ~/code/Claude-to-IM-skill
-bash ~/code/Claude-to-IM-skill/scripts/install-codex.sh
-```
-
-For local development with a live checkout:
-
-```bash
-bash ~/code/Claude-to-IM-skill/scripts/install-codex.sh --link
-```
-
-The install script places the skill under `~/.codex/skills/claude-to-im`, installs dependencies, and builds the daemon.
-
-After installation, tell Codex:
-
-```text
-claude-to-im setup
-```
-
-If you want WeChat specifically, you can also say:
-
-```text
-帮我接微信桥接
-```
-
-#### Alternative: clone directly into Codex skills
-
-```bash
-git clone https://github.com/op7418/Claude-to-IM-skill.git ~/.codex/skills/claude-to-im
-cd ~/.codex/skills/claude-to-im
+git clone https://github.com/tornellihenrique/agent-relay.git
+cd agent-relay
 npm install
 npm run build
+node dist/relay.mjs install
 ```
 
-### Verify installation
+`relay install` puts a `relay` command in `~/.local/bin`.
 
-**Claude Code:** Start a new session and type `/` — you should see `claude-to-im` in the skill list. Or ask Claude: "What skills are available?"
+## Create a bot
 
-**Codex:** Start a new session and say `claude-to-im setup`, `start bridge`, or `帮我接微信桥接`.
+1. In the [Discord Developer Portal](https://discord.com/developers/applications), create an application. On the **Bot** page, reset the token and turn on **Message Content Intent**.
+2. Run `relay new` and answer the questions. It checks the token and channels and prints the invite link (scopes `bot` and `applications.commands`, with the permissions the bot needs).
+3. `relay doctor <bot>` checks everything once more: the token, the channels, the Claude login, and which MCP servers the bot will see. It sends no prompt and spends no tokens.
+4. `relay start <bot>`.
 
-## Updating the Skill
+Coming from Claude-to-IM? `relay import-cti` turns `~/.claude-to-im/config.env` into a bot.
 
-Choose the update flow that matches both your AI agent product and your installation method.
+## Run
 
-### Claude Code
-
-If you installed with `npx skills`, re-run:
-
-```bash
-npx skills add op7418/Claude-to-IM-skill
-```
-
-If you installed via `git clone` or symlink:
-
-```bash
-cd ~/.claude/skills/claude-to-im
-git pull
-npm install
-npm run build
-```
-
-Then tell Claude Code:
-
-```text
-/claude-to-im doctor
-/claude-to-im start
-```
-
-### Codex
-
-If you installed with the Codex install script in copy mode:
-
-```bash
-rm -rf ~/.codex/skills/claude-to-im
-bash ~/code/Claude-to-IM-skill/scripts/install-codex.sh
-```
-
-If you installed with `--link` or cloned directly into the Codex skills directory:
-
-```bash
-cd ~/.codex/skills/claude-to-im
-git pull
-npm install
-npm run build
-```
-
-Then tell Codex:
-
-```text
-claude-to-im doctor
-start bridge
-```
-
-## Quick Start
-
-### 1. Setup
-
-**Claude Code**
-
-```text
-/claude-to-im setup
-```
-
-**Codex**
-
-```text
-claude-to-im setup
-```
-
-The wizard will guide you through:
-
-1. **Choose channels** — pick Telegram, Discord, Feishu, QQ, WeChat, or any combination
-2. **Enter credentials** — the wizard explains exactly where to get each token, which settings to enable, and what permissions to grant
-3. **Set defaults** — working directory, model, and mode
-4. **Validate** — tokens are verified against platform APIs immediately
-
-### 2. Start
-
-**Claude Code**
-
-```text
-/claude-to-im start
-```
-
-**Codex**
-
-```text
-start bridge
-```
-
-The daemon starts in the background. You can close the terminal — it keeps running.
-
-### 3. Chat
-
-Open your IM app and send a message to your bot. Claude Code / Codex will respond through the bridge.
-
-When Claude needs to use a tool (edit a file, run a command), you'll see a permission prompt with **Allow** / **Deny** buttons right in the chat (Telegram/Discord), or a text `/perm` command prompt / quick `1/2/3` replies (Feishu/QQ/WeChat).
-
-## Commands
-
-All commands are run inside Claude Code or Codex:
-
-| Claude Code | Codex (natural language) | Description |
-|---|---|---|
-| `/claude-to-im setup` | "claude-to-im setup" / "配置" | Interactive setup wizard |
-| `/claude-to-im start` | "start bridge" / "启动桥接" | Start the bridge daemon |
-| `/claude-to-im stop` | "stop bridge" / "停止桥接" | Stop the bridge daemon |
-| `/claude-to-im status` | "bridge status" / "状态" | Show daemon status |
-| `/claude-to-im logs` | "查看日志" | Show last 50 log lines |
-| `/claude-to-im logs 200` | "logs 200" | Show last 200 log lines |
-| `/claude-to-im reconfigure` | "reconfigure" / "修改配置" | Update config interactively |
-| `/claude-to-im doctor` | "doctor" / "诊断" | Diagnose issues |
-
-## Platform Setup Guides
-
-The `setup` wizard provides inline guidance for every step. Here's a summary:
-
-### Telegram
-
-1. Message `@BotFather` on Telegram → `/newbot` → follow prompts
-2. Copy the bot token (format: `123456789:AABbCc...`)
-3. Recommended: `/setprivacy` → Disable (for group use)
-4. Find your User ID: message `@userinfobot`
-
-### Discord
-
-1. Go to [Discord Developer Portal](https://discord.com/developers/applications) → New Application
-2. Bot tab → Reset Token → copy it
-3. Enable **Message Content Intent** under Privileged Gateway Intents
-4. OAuth2 → URL Generator → scope `bot` → permissions: Send Messages, Read Message History, View Channels → copy invite URL
-
-### Feishu / Lark
-
-1. Go to [Feishu Open Platform](https://open.feishu.cn/app) (or [Lark](https://open.larksuite.com/app))
-2. Create Custom App → get App ID and App Secret
-3. **Batch-add permissions**: go to "Permissions & Scopes" → use batch configuration to add all required scopes (the `setup` wizard provides the exact JSON)
-4. Enable Bot feature under "Add Features"
-5. **Events & Callbacks**: select **"Long Connection"** as event dispatch method → add `im.message.receive_v1` event
-6. **Publish**: go to "Version Management & Release" → create version → submit for review → approve in Admin Console
-7. **Important**: The bot will NOT work until the version is approved and published
-
-### QQ
-
-> QQ currently supports **C2C private chat only**. No group/channel support, no inline permission buttons, no streaming preview. Permissions use text `/perm ...` commands. Image inbound only (no image replies).
-
-1. Go to [QQ Bot OpenClaw](https://q.qq.com/qqbot/openclaw)
-2. Create a QQ Bot or select an existing one → get **App ID** and **App Secret** (only two required fields)
-3. Configure sandbox access and scan QR code with QQ to add the bot
-4. `CTI_QQ_ALLOWED_USERS` takes `user_openid` values (not QQ numbers) — can be left empty initially
-5. Set `CTI_QQ_IMAGE_ENABLED=false` if the underlying provider doesn't support image input
-
-### WeChat / Weixin
-
-> WeChat currently uses QR login, single-account mode, text-based permissions, and no streaming preview.
-
-1. Run the local QR helper from your installed skill directory:
-   - Claude Code default install: `cd ~/.claude/skills/claude-to-im && npm run weixin:login`
-   - Codex default install: `cd ~/.codex/skills/claude-to-im && npm run weixin:login`
-2. The helper writes `~/.claude-to-im/runtime/weixin-login.html` and tries to open it in your browser automatically
-3. Scan the QR code with WeChat and confirm on your phone
-4. On success, the linked account is stored in `~/.claude-to-im/data/weixin-accounts.json`
-5. Running the helper again replaces the previously linked WeChat account
-
-Additional notes:
-
-- `CTI_WEIXIN_MEDIA_ENABLED` controls inbound image/file/video downloads only
-- Voice messages only use WeChat's own built-in speech-to-text text
-- If WeChat does not provide `voice_item.text`, the bridge replies with an error instead of downloading/transcribing raw voice audio
-- Permission approvals use text `/perm ...` commands or quick `1/2/3` replies
-
-## Architecture
-
-```
-~/.claude-to-im/
-├── config.env             ← Credentials & settings (chmod 600)
-├── data/                  ← Persistent JSON storage
-│   ├── sessions.json
-│   ├── bindings.json
-│   ├── permissions.json
-│   └── messages/          ← Per-session message history
-├── logs/
-│   └── bridge.log         ← Auto-rotated, secrets redacted
-└── runtime/
-    ├── bridge.pid          ← Daemon PID file
-    └── status.json         ← Current status
-```
-
-### Key components
-
-| Component | Role |
+| Command | What it does |
 |---|---|
-| `src/main.ts` | Daemon entry — assembles DI, starts bridge |
-| `src/config.ts` | Load/save `config.env`, map to bridge settings |
-| `src/store.ts` | JSON file BridgeStore (30 methods, write-through cache) |
-| `src/llm-provider.ts` | Claude Agent SDK `query()` → SSE stream |
-| `src/codex-provider.ts` | Codex SDK `runStreamed()` → SSE stream |
-| `src/sse-utils.ts` | Shared SSE formatting helper |
-| `src/permission-gateway.ts` | Async bridge: SDK `canUseTool` ↔ IM buttons |
-| `src/logger.ts` | Secret-redacted file logging with rotation |
-| `scripts/daemon.sh` | Process management (start/stop/status/logs) |
-| `scripts/doctor.sh` | Health checks |
-| `SKILL.md` | Claude Code skill definition |
+| `relay` | Status of the supervisor and each bot, with its status line |
+| `relay up` / `relay down` | Start the supervisor in the background, without a window / stop it and every bot |
+| `relay start <bot\|all>` | Enable and start a bot |
+| `relay stop <bot\|all>` | Stop a bot. It stays off, also after reboots, until started again |
+| `relay restart <bot\|all>` | Restart, picking up config changes |
+| `relay logs <bot\|supervisor> [-n 100] [-f]` | Read or follow logs |
+| `relay dashboard` | Local web page with every bot: status, conversations, logs, start/stop |
+| `relay autostart on\|off\|status` | Start the supervisor at logon. Windows uses a scheduled task, macOS launchd, Linux a systemd user unit |
+| `relay doctor [bot]` | Health checks |
+| `relay edit <bot>` | Open the bot's config |
+| `relay run <bot>` | Run one bot in the terminal, without the supervisor (debugging) |
 
-### Permission flow
+The supervisor runs each bot in its own process and restarts it if it crashes. Each bot keeps one Claude Code session per conversation (channel, thread or DM) alive between messages, so replies don't wait for a new CLI process. After `agent.idleMinutes` without messages the process is closed, and the next message resumes the same session.
 
-```
-1. Claude wants to use a tool (e.g., Edit file)
-2. SDK calls canUseTool() → LLMProvider emits permission_request SSE
-3. Bridge sends inline buttons to IM chat: [Allow] [Deny]
-4. canUseTool() blocks, waiting for user response (5 min timeout)
-5. User taps Allow → bridge resolves the pending permission
-6. SDK continues tool execution → result streamed back to IM
-```
+## In Discord
 
-## Troubleshooting
-
-Run diagnostics:
-
-```
-/claude-to-im doctor
-```
-
-This checks: Node.js version, config file existence and permissions, token validity (live API calls), log directory, PID file consistency, and recent errors.
-
-| Issue | Solution |
+| Command | |
 |---|---|
-| `Bridge won't start` | Run `doctor`. Check if Node >= 20. Check logs. |
-| `Messages not received` | Verify token with `doctor`. Check allowed users config. |
-| `Permission timeout` | User didn't respond within 5 min. Tool call auto-denied. |
-| `Stale PID file` | Run `stop` then `start`. daemon.sh auto-cleans stale PIDs. |
+| `/status` | Model, effort, context use, session, plan usage, listening mode |
+| `/model [name]` · `/effort [level]` | Show or change them for this channel (owners) |
+| `/compact [focus]` | Save notes, then compact the conversation |
+| `/new` | Save notes and start a fresh session (owners) |
+| `/stop` | Interrupt the current turn |
+| `/context` | What fills the context window |
+| `/memory` | The notebook index and where memory lives |
+| `/history query` | Search everything said in the bot's channels |
+| `/listen mode` | mentions, every message, or off, for this channel (owners) |
+| `/schedules [remove]` | List or remove scheduled tasks |
+| `/usage` | 5-hour and weekly plan usage |
+| `/restart` | Restart the agent process; the session resumes (owners) |
+| `/help` | How to talk to the bot |
 
-See [references/troubleshooting.md](references/troubleshooting.md) for more details.
+## Memory
 
-## Security
+Each bot has a home at `~/.agent-relay/bots/<id>/`:
 
-- All credentials stored in `~/.claude-to-im/config.env` with `chmod 600`
-- Tokens are automatically redacted in all log output (pattern-based masking)
-- Allowed user/channel/guild lists restrict who can interact with the bot
-- The daemon is a local process with no inbound network listeners
-- See [SECURITY.md](SECURITY.md) for threat model and incident response
+| Path | What |
+|---|---|
+| `bot.json` | The bot's config |
+| `relay.db` | The archive: every message in its channels (or only its interactions, per config), every turn, sessions, schedules. Full-text search ignores accents |
+| `notebook/` | The bot's own notes. `NOTEBOOK.md` is the index, given to the agent at the start of every session and after each compaction |
+| `inbox/` | Files people attached |
+| `logs/bot.log` | The bot's log |
+| `state.json` | Sessions to resume, per-channel overrides |
+
+**Compaction:**
+
+- Claude Code compacts on its own when the context fills up. The bot compacts first, at `agent.compactAtPercent`, after asking the agent to update its notebook.
+- `/compact` does the same on demand.
+- The summary replaces old turns inside the session. Nothing is lost:
+  - the full transcript stays in Claude Code's history (`~/.claude/projects/...`, path in `/context`);
+  - every message stays in the archive, which the agent searches with `history_search` and `history_read`;
+  - durable facts live in the notebook.
+
+Several bots can share a context folder: they share the folder, its `CLAUDE.md` and its tools, and each keeps its own notebook, archive and sessions.
+
+## The agent's Discord tools
+
+Every session gets an in-process MCP server, `relay`, with:
+
+- **Discord:** `react`, `offer_choices`, `send_message`, `upload_file`, `channel_messages`, `get_message`, `find_member`
+- **Memory:** `history_search`, `history_read`
+- **Schedules:** `schedule_create` (cron, ISO date, or "in 10m"), `schedule_list`, `schedule_delete`
+- **Self:** `bot_status`
+
+The bot's instructions are appended to Claude Code's system prompt. They cover how it is reached, how to write for Discord, how to read reactions, and its memory. Bot-specific instructions go in `agent.instructions` or `agent.instructionsFile`. Instructions about the work itself belong in the folder's `CLAUDE.md`.
+
+## Configuration
+
+A full `bot.json`. Only `id`, `name`, `context` and `platform` are required; everything else shows its default.
+
+```jsonc
+{
+  "id": "egg-smash-pm",
+  "name": "Egg Smash PM",
+  "enabled": true,
+  "context": "C:\\Users\\me\\Projects\\egg-smash-pm",   // the agent's working folder
+  "timezone": "America/Sao_Paulo",
+  "owners": ["236653638095732746"],                     // change settings, approve tools, /new
+  "platform": {
+    "type": "discord",
+    "token": "env:EGG_SMASH_BOT_TOKEN",                 // or the token itself, or "file:path"
+    "channels": ["1491846697268023377"],                // channels, threads inside them, or categories
+    "users": [],                                        // allowed anywhere the bot is, DMs included
+    "blockedUsers": [],
+    "summonEmoji": "🤖",
+    "respondToBots": false,
+    "suppressEmbeds": true,                             // no link previews under the bot's messages
+    "allowMentions": ["users"],
+    "slashCommands": true
+  },
+  "agent": {
+    "runtime": "claude",
+    "model": "opus",                                    // alias or id; empty = the CLI default
+    "effort": "medium",                                 // low | medium | high | xhigh | max
+    "thinking": "summarized",                           // reasoning text for the live message
+    "auth": "subscription",                             // or "apiKey" with "apiKey": "env:ANTHROPIC_API_KEY"
+    "claudeConfigDir": "",                              // another Claude account for this bot
+    "permissionMode": "acceptEdits",                    // default | acceptEdits | bypassPermissions | plan | dontAsk | auto
+    "allowedTools": [],
+    "disallowedTools": ["PowerShell"],
+    "mcp": { "allow": ["jira-pm", "claude.ai Google Drive"], "deny": [] },
+    "settingSources": ["user", "project", "local"],     // load the folder's CLAUDE.md, settings and .mcp.json
+    "additionalDirectories": [],
+    "instructions": "",
+    "instructionsFile": "",
+    "idleMinutes": 60,                                  // 0 = keep the agent process warm forever
+    "warmStart": true,
+    "turnTimeoutMinutes": 45,
+    "compactAtPercent": 85,
+    "saveBeforeCompact": true,
+    "env": {}
+  },
+  "conversation": {
+    "scope": "channel",                                 // or "bot": one session for every channel
+    "trigger": "mentions",                              // mentions | all | off
+    "recentMessages": 12,                               // unseen channel messages sent along with a trigger
+    "channelSettings": { "1491846697268023377": { "trigger": "mentions" } }
+  },
+  "feedback": {
+    "liveAfterSeconds": 6,
+    "footer": "auto",                                   // auto | always | never
+    "pingAfterSeconds": 45,                             // ping the asker when the answer took longer
+    "toolReactions": true,
+    "promptSuggestions": false,
+    "reactions": { "received": "👀", "queued": "⏳", "thinking": "🤔", "writing": "✍️", "done": "✅", "error": "⚠️", "stopped": "⏹️", "waiting": "🙋" }
+  },
+  "status": { "template": "{label} | {model} ({window}) | ctx {ctx}", "label": "PM" },
+  "memory": { "notebook": "", "archive": "all" },
+  "schedules": [
+    { "id": "daily", "when": "0 18 * * 1-5", "channel": "1491846697268023377", "prompt": "Check the sprint and remind people of stale tasks." }
+  ]
+}
+```
+
+Status template placeholders are `{label}`, `{model}`, `{window}`, `{ctx}`, `{effort}`, `{state}`, `{queue}`, `{five_hour}` and `{seven_day}`.
+
+### Security
+
+- A bot only reads and answers in its `channels`, and only `users` reach it elsewhere.
+- Tool approvals and settings commands are limited to `owners`.
+- `agent.mcp.allow` keeps your personal connectors out of a team-facing bot. On a claude.ai login, every connector of the account loads into every session unless you hide it. `relay doctor` shows what each bot sees.
+- Agent processes don't inherit Claude/Anthropic variables from the shell that started the relay (for example, a parent Claude Code session's proxy); set what a bot needs in `agent.env`.
+- With `auth: subscription`, `ANTHROPIC_API_KEY` is removed, so the machine's Claude login is used.
+
+## Code map
+
+```
+src/
+  agent/      runtime interface; claude.ts = a persistent Agent SDK session
+  platform/   platform interface; discord.ts; markdown chunking and tables
+  bot/        bot.ts (events, triggers, context), conversation.ts (queue, session,
+              compaction), turn.ts (live feedback), tools.ts (relay MCP server),
+              prompts.ts (permission/question buttons), commands.ts, scheduler.ts
+  core/       config schema, archive (SQLite + FTS5), state, logs, paths
+  runtime/    supervisor, worker, control API + dashboard, autostart
+  cli/        relay command, setup wizard, doctor
+```
+
+Adding a platform means implementing `Platform` (`src/platform/types.ts`), and a platform that can't react or edit reports it in `capabilities`. Adding an agent runtime means implementing `AgentSession` (`src/agent/types.ts`).
 
 ## Development
 
 ```bash
-npm install        # Install dependencies
-npm run dev        # Run in dev mode
-npm run typecheck  # Type check
-npm test           # Run tests
-npm run build      # Build bundle
+npm run typecheck
+npm test                                  # unit tests
+npx tsx test/harness/e2e.ts <scratch-dir> # real Claude, fake Discord: prints everything the bot does
 ```
 
 ## License
 
-[MIT](LICENSE)
+MIT. Based on Claude-to-IM-skill by op7418.

@@ -323,7 +323,12 @@ export class Conversation {
       this.needsNotebook = false;
     }
     const images = batch.flatMap((b) => b.images ?? []);
-    const outcome = await session.run({ text, images }, this.sinkFor(view));
+    let outcome: TurnOutcome;
+    try {
+      outcome = await session.run({ text, images }, this.sinkFor(view));
+    } catch (err) {
+      outcome = { status: 'error', text: '', fullText: '', error: err instanceof Error ? err.message : String(err), durationMs: Date.now() - turn.startedAt };
+    }
     if (outcome.freshSession) {
       this.needsNotebook = false;
       this.bot.archive.addEvent(this.key, 'fresh_session', { reason: 'resume failed' });

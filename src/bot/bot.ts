@@ -617,7 +617,8 @@ export class Bot implements BotRuntime {
     const vars: Record<string, string> = {
       label: this.label(),
       model: info?.modelLabel ?? modelLabel(this.cfg.agent.model),
-      window: info?.contextWindow ? windowLabel(info.contextWindow) : '',
+      // The model's window is known after the first answer; until then the context-usage window stands in.
+      window: info?.contextWindow || info?.ctxMax ? windowLabel(info?.contextWindow || info?.ctxMax) : '',
       ctx: info?.ctxPercent !== undefined ? `${Math.round(info.ctxPercent)}%` : '—',
       effort: String(info?.effort ?? this.cfg.agent.effort ?? 'default'),
       state: busy ? 'working' : alive ? 'ready' : 'asleep',
